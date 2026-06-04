@@ -1,0 +1,51 @@
+[package]
+name = "srtp-rs"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.76"
+license = "MIT OR Apache-2.0"
+description = "Pure-Rust SRTP / SRTCP (RFC 3711, RFC 7714 AES-GCM) layered on rtp-rs, using CryptoKit AES-GCM and a CommonCrypto AES-CTR key-derivation function"
+authors = ["Per Johansson <per@doom.fish>"]
+homepage = "https://github.com/doom-fish/srtp-rs"
+repository = "https://github.com/doom-fish/srtp-rs"
+keywords = ["srtp", "srtcp", "webrtc", "aes-gcm", "rtp"]
+categories = ["network-programming", "multimedia", "cryptography"]
+readme = "README.md"
+build = "build.rs"
+publish = false
+
+[lib]
+name = "srtp"
+path = "src/lib.rs"
+crate-type = ["lib"]
+
+[features]
+default = []
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+
+[dependencies]
+libc = "0.2"
+rtp = { path = "../rtp-rs", package = "rtp-rs" }
+cryptokit = { path = "../cryptokit-rs", package = "cryptokit-rs" }
+
+[[example]]
+name = "01_protect_packet"
+path = "examples/01_protect_packet.rs"
+
+[[example]]
+name = "02_unprotect_packet"
+path = "examples/02_unprotect_packet.rs"
+
+[[example]]
+name = "03_kdf_demo"
+path = "examples/03_kdf_demo.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[badges]
+maintenance = { status = "actively-developed" }
