@@ -17,7 +17,7 @@ path from a sibling checkout:
 
 ```toml
 [dependencies]
-srtp = { package = "srtp-rs", path = "../srtp-rs", version = "0.1" }
+srtp = { package = "srtp-rs", path = "../srtp-rs", version = "0.2" }
 ```
 
 ## Features
