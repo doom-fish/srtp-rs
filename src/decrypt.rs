@@ -19,10 +19,10 @@ pub fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    let mut diff = 0u8;
-    for (x, y) in a.iter().zip(b.iter()) {
-        diff |= x ^ y;
-    }
+    let diff = a
+        .iter()
+        .zip(b)
+        .fold(0u8, |diff, (x, y)| core::hint::black_box(diff | (x ^ y)));
     diff == 0
 }
 

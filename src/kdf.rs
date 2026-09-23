@@ -8,6 +8,8 @@
 //! `CryptoKit` does not expose AES-CTR, so the keystream is produced through
 //! the CommonCrypto FFI in [`crate::ffi::commoncrypto`].
 
+use zeroize::Zeroizing;
+
 use crate::error::{Result, SrtpError};
 use crate::ffi::commoncrypto;
 
@@ -40,7 +42,12 @@ pub const LABEL_SRTCP_SALT: u8 = 0x05;
 ///
 /// # Errors
 /// Returns [`SrtpError::Crypto`] if the CommonCrypto AES-CTR primitive fails.
-pub fn derive(master_key: &[u8], master_salt: &[u8], label: u8, out_len: usize) -> Result<Vec<u8>> {
+pub fn derive(
+    master_key: &[u8],
+    master_salt: &[u8],
+    label: u8,
+    out_len: usize,
+) -> Result<Zeroizing<Vec<u8>>> {
     let mut counter = [0u8; 16];
     let copy = master_salt.len().min(16);
     counter[..copy].copy_from_slice(&master_salt[..copy]);

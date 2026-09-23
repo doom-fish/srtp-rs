@@ -12,6 +12,7 @@
 //! the rollover counter and, for receivers, the replay window.
 
 use rtp::{Packet, RtpPacket, RtpPacketMut};
+use zeroize::Zeroizing;
 
 use crate::decrypt::{ct_eq, verify_hmac};
 use crate::encrypt::{aes_cm_xor, gcm_open, gcm_seal, hmac_sha1_tag, srtp_cm_iv, srtp_gcm_iv};
@@ -28,12 +29,12 @@ use crate::roc::{ReceiverRoc, SenderRoc};
 #[derive(Clone)]
 pub struct SrtpKey {
     profile: Profile,
-    srtp_enc: Vec<u8>,
-    srtp_salt: Vec<u8>,
-    srtp_auth: Vec<u8>,
-    srtcp_enc: Vec<u8>,
-    srtcp_salt: Vec<u8>,
-    srtcp_auth: Vec<u8>,
+    srtp_enc: Zeroizing<Vec<u8>>,
+    srtp_salt: Zeroizing<Vec<u8>>,
+    srtp_auth: Zeroizing<Vec<u8>>,
+    srtcp_enc: Zeroizing<Vec<u8>>,
+    srtcp_salt: Zeroizing<Vec<u8>>,
+    srtcp_auth: Zeroizing<Vec<u8>>,
 }
 
 #[allow(missing_docs)]
@@ -133,12 +134,12 @@ impl SrtpKey {
 
         Ok(Self {
             profile,
-            srtp_enc: media.encryption.to_vec(),
-            srtp_salt: media.salt.to_vec(),
-            srtp_auth: media.authentication.to_vec(),
-            srtcp_enc: control.encryption.to_vec(),
-            srtcp_salt: control.salt.to_vec(),
-            srtcp_auth: control.authentication.to_vec(),
+            srtp_enc: Zeroizing::new(media.encryption.to_vec()),
+            srtp_salt: Zeroizing::new(media.salt.to_vec()),
+            srtp_auth: Zeroizing::new(media.authentication.to_vec()),
+            srtcp_enc: Zeroizing::new(control.encryption.to_vec()),
+            srtcp_salt: Zeroizing::new(control.salt.to_vec()),
+            srtcp_auth: Zeroizing::new(control.authentication.to_vec()),
         })
     }
 

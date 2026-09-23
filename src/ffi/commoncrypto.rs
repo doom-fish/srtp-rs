@@ -17,6 +17,8 @@
 
 use core::ffi::c_void;
 
+use zeroize::Zeroizing;
+
 /// `kCCEncrypt` — encrypt operation (also drives CTR keystream generation).
 const KCC_ENCRYPT: u32 = 0;
 /// `kCCModeCTR` — Counter Mode.
@@ -159,8 +161,8 @@ pub fn aes_ctr_in_place(key: &[u8], iv: &[u8; 16], data: &mut [u8]) -> Result<()
 ///
 /// # Errors
 /// Propagates the `CCCryptorStatus` from [`aes_ctr_in_place`].
-pub fn aes_ctr_keystream(key: &[u8], iv: &[u8; 16], len: usize) -> Result<Vec<u8>, i32> {
-    let mut out = vec![0u8; len];
+pub fn aes_ctr_keystream(key: &[u8], iv: &[u8; 16], len: usize) -> Result<Zeroizing<Vec<u8>>, i32> {
+    let mut out = Zeroizing::new(vec![0u8; len]);
     aes_ctr_in_place(key, iv, &mut out)?;
     Ok(out)
 }
