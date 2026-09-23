@@ -63,7 +63,7 @@ pub fn srtcp_cm_iv(salt: &[u8], ssrc: u32, index: u32) -> [u8; 16] {
     let mut iv = [0u8; 16];
     iv[..salt.len().min(14)].copy_from_slice(&salt[..salt.len().min(14)]);
     iv[4..8].iter_mut().zip(ssrc.to_be_bytes()).for_each(|(b, s)| *b ^= s);
-    iv[8..12]
+    iv[10..14]
         .iter_mut()
         .zip((index & 0x7FFF_FFFF).to_be_bytes())
         .for_each(|(b, s)| *b ^= s);
