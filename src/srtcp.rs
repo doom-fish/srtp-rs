@@ -52,6 +52,14 @@ impl SrtcpSession {
         Self::new_sender(key)
     }
 
+    #[allow(missing_docs)]
+    pub fn with_replay_window(self, size: usize) -> Result<Self> {
+        Ok(Self {
+            replay: ReplayWindow::with_size(size)?,
+            ..self
+        })
+    }
+
     /// Override the next SRTCP index the sender will use.
     ///
     /// Primarily useful for resuming an externally-sequenced stream and for

@@ -1,8 +1,8 @@
-//! Anti-replay protection with a 64-bit sliding window (RFC 3711 §3.3.2).
+//! Anti-replay protection with a sliding window (RFC 3711 §3.3.2).
 //!
 //! Each receiving SRTP/SRTCP context keeps the highest packet index it has
-//! authenticated and a 64-entry bitmap of which of the preceding indices have
-//! already been seen. A packet is rejected if its index is at or below the
+//! authenticated and a bitmap of which of the preceding indices have already
+//! been seen. A packet is rejected if its index is at or below the
 //! trailing edge of the window, or if its bit inside the window is already set.
 //!
 //! Per RFC 3711 the replay check is performed *before* decryption for the
@@ -10,17 +10,27 @@
 //! authentication tag verifies, so this type separates [`ReplayWindow::check`]
 //! from [`ReplayWindow::mark`].
 
-/// Width of the sliding replay window, in packets.
-pub const WINDOW_SIZE: u64 = 64;
+use crate::error::{Result, SrtpError};
 
-/// A 64-bit sliding replay window keyed on the 48-bit (SRTP) or 31-bit (SRTCP)
+#[allow(missing_docs)]
+pub const MIN_WINDOW_SIZE: usize = 64;
+#[allow(missing_docs)]
+pub const MAX_WINDOW_SIZE: usize = 1024;
+#[allow(missing_docs)]
+pub const DEFAULT_WINDOW_SIZE: usize = MAX_WINDOW_SIZE;
+
+const WORDS: usize = MAX_WINDOW_SIZE / 64;
+
+/// A sliding replay window keyed on the 48-bit (SRTP) or 31-bit (SRTCP)
 /// packet index.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ReplayWindow {
     /// Highest index accepted so far. `None` until the first packet.
     highest: Option<u64>,
-    /// Bitmap of seen indices: bit `n` corresponds to index `highest - n`.
-    bitmap: u64,
+    /// Bitmap of seen indices: bit `index % MAX_WINDOW_SIZE` records `index`
+    /// for the indices inside the window.
+    bitmap: [u64; WORDS],
+    size: usize,
 }
 
 /// Outcome of a replay-window bounds check.
@@ -32,14 +42,40 @@ pub enum ReplayCheck {
     Replayed,
 }
 
+const fn bit(index: u64) -> (usize, u64) {
+    let position = (index % MAX_WINDOW_SIZE as u64) as usize;
+    (position / 64, 1 << (position % 64))
+}
+
+impl Default for ReplayWindow {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ReplayWindow {
     /// A fresh, empty replay window.
     #[must_use]
     pub const fn new() -> Self {
         Self {
             highest: None,
-            bitmap: 0,
+            bitmap: [0; WORDS],
+            size: DEFAULT_WINDOW_SIZE,
         }
+    }
+
+    #[allow(missing_docs)]
+    pub fn with_size(size: usize) -> Result<Self> {
+        if !(MIN_WINDOW_SIZE..=MAX_WINDOW_SIZE).contains(&size) {
+            return Err(SrtpError::InvalidReplayWindow(size));
+        }
+        Ok(Self { size, ..Self::new() })
+    }
+
+    #[allow(missing_docs)]
+    #[must_use]
+    pub const fn size(&self) -> usize {
+        self.size
     }
 
     /// Test whether `index` is acceptable, without mutating the window.
@@ -54,15 +90,15 @@ impl ReplayWindow {
         if index > highest {
             return ReplayCheck::Ok;
         }
-        let delta = highest - index;
-        if delta >= WINDOW_SIZE {
+        if highest - index >= self.size as u64 {
             // Older than the trailing edge of the window.
             return ReplayCheck::Replayed;
         }
-        if (self.bitmap >> delta) & 1 == 1 {
-            ReplayCheck::Replayed
-        } else {
+        let (word, mask) = bit(index);
+        if self.bitmap[word] & mask == 0 {
             ReplayCheck::Ok
+        } else {
+            ReplayCheck::Replayed
         }
     }
 
@@ -72,26 +108,30 @@ impl ReplayWindow {
     /// [`ReplayCheck::Ok`] and the packet authenticated.
     pub fn mark(&mut self, index: u64) {
         match self.highest {
-            None => {
-                self.highest = Some(index);
-                self.bitmap = 1; // bit 0 == this (the highest) index
-            }
-            Some(highest) if index > highest => {
-                let shift = index - highest;
-                if shift >= WINDOW_SIZE {
-                    self.bitmap = 1;
-                } else {
-                    self.bitmap = (self.bitmap << shift) | 1;
+            Some(highest) if index <= highest => {
+                if highest - index < self.size as u64 {
+                    self.set(index);
                 }
+            }
+            Some(highest) if index - highest < MAX_WINDOW_SIZE as u64 => {
+                for skipped in highest + 1..index {
+                    let (word, mask) = bit(skipped);
+                    self.bitmap[word] &= !mask;
+                }
+                self.set(index);
                 self.highest = Some(index);
             }
-            Some(highest) => {
-                let delta = highest - index;
-                if delta < WINDOW_SIZE {
-                    self.bitmap |= 1 << delta;
-                }
+            _ => {
+                self.bitmap = [0; WORDS];
+                self.set(index);
+                self.highest = Some(index);
             }
         }
+    }
+
+    fn set(&mut self, index: u64) {
+        let (word, mask) = bit(index);
+        self.bitmap[word] |= mask;
     }
 
     /// The highest index accepted so far, if any.

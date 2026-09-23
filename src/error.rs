@@ -38,6 +38,8 @@ pub enum SrtpError {
     IndexReused,
     #[allow(missing_docs)]
     SessionKeyReuse,
+    #[allow(missing_docs)]
+    InvalidReplayWindow(usize),
 }
 
 impl fmt::Display for SrtpError {
@@ -62,6 +64,12 @@ impl fmt::Display for SrtpError {
                 "packet index already protected with this key; reusing it would repeat the keystream",
             ),
             Self::SessionKeyReuse => f.write_str("SRTP and SRTCP must use different session keys"),
+            Self::InvalidReplayWindow(size) => write!(
+                f,
+                "replay window must hold {} to {} packets, got {size}",
+                crate::replay::MIN_WINDOW_SIZE,
+                crate::replay::MAX_WINDOW_SIZE
+            ),
         }
     }
 }

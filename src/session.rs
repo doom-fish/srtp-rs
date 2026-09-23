@@ -186,6 +186,14 @@ impl SrtpSession {
     }
 
     #[allow(missing_docs)]
+    pub fn with_replay_window(self, size: usize) -> Result<Self> {
+        Ok(Self {
+            replay: ReplayWindow::with_size(size)?,
+            ..self
+        })
+    }
+
+    #[allow(missing_docs)]
     #[must_use]
     pub fn with_roc(self, roc: u32) -> Self {
         Self {
