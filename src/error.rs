@@ -32,6 +32,12 @@ pub enum SrtpError {
     Rtp(rtp::Error),
     /// A platform crypto primitive (CommonCrypto / CryptoKit) failed.
     Crypto(String),
+    #[allow(missing_docs)]
+    KeyExpired,
+    #[allow(missing_docs)]
+    IndexReused,
+    #[allow(missing_docs)]
+    SessionKeyReuse,
 }
 
 impl fmt::Display for SrtpError {
@@ -49,6 +55,13 @@ impl fmt::Display for SrtpError {
             }
             Self::Rtp(e) => write!(f, "RTP codec error: {e}"),
             Self::Crypto(msg) => write!(f, "platform crypto error: {msg}"),
+            Self::KeyExpired => f.write_str(
+                "SRTP key lifetime exhausted (2^48 SRTP or 2^31 SRTCP packets); rekey",
+            ),
+            Self::IndexReused => f.write_str(
+                "packet index already protected with this key; reusing it would repeat the keystream",
+            ),
+            Self::SessionKeyReuse => f.write_str("SRTP and SRTCP must use different session keys"),
         }
     }
 }

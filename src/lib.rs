@@ -29,10 +29,10 @@
 //! use srtp::{Profile, SrtpKey, SrtpSession};
 //! use srtp::rtp::{Packet, RtpPacket};
 //!
-//! // Session keys (e.g. exported by DTLS-SRTP).
-//! let enc = [0u8; 16];
-//! let salt = [0u8; 12];
-//! let key = SrtpKey::from_session(Profile::AeadAes128Gcm, &enc, &salt, &[]).unwrap();
+//! // Master key and salt (e.g. exported by DTLS-SRTP).
+//! let master_key = [0u8; 16];
+//! let master_salt = [0u8; 12];
+//! let key = SrtpKey::from_master(&master_key, &master_salt, Profile::AeadAes128Gcm).unwrap();
 //! let mut tx = SrtpSession::new_sender(key);
 //!
 //! let rtp = RtpPacket::builder().ssrc(0x1234).sequence_number(1).payload(b"hi").build().unwrap();
@@ -63,7 +63,7 @@ pub mod srtcp;
 
 pub use error::{Result, SrtpError};
 pub use profile::Profile;
-pub use session::{SrtpKey, SrtpSession};
+pub use session::{SessionKeys, SrtpKey, SrtpSession};
 pub use srtcp::SrtcpSession;
 
 /// Re-export of the underlying `rtp` crate so callers can build and read

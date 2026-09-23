@@ -1,9 +1,9 @@
 //! RFC 7714 AES-GCM SRTCP test vectors (§17.1 and §17.2).
 
 mod common;
-use common::{hex, to_hex};
+use common::{hex, srtcp_session_key, to_hex};
 
-use srtp::{Profile, SrtcpSession, SrtpKey};
+use srtp::{Profile, SrtcpSession};
 
 /// The cleartext RTCP compound packet shared by the SRTCP vectors.
 fn cleartext_rtcp() -> Vec<u8> {
@@ -27,9 +27,9 @@ fn srtcp_aes128_gcm_encrypt_17_1() {
          45d9eade 800005d4",
     );
 
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes128Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtcp_session_key(Profile::AeadAes128Gcm, &key, &salt);
     let mut tx = SrtcpSession::new_sender(srtp_key);
-    tx.set_index(0x0000_05d4);
+    tx.set_index(0x0000_05d4).unwrap();
 
     let mut out = vec![0u8; expected.len()];
     let n = tx.protect(&cleartext_rtcp(), &mut out).unwrap();
@@ -50,7 +50,7 @@ fn srtcp_aes128_gcm_decrypt_17_1() {
          45d9eade 800005d4",
     );
 
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes128Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtcp_session_key(Profile::AeadAes128Gcm, &key, &salt);
     let mut rx = SrtcpSession::new_receiver(srtp_key);
     let recovered = rx.unprotect(&protected).unwrap();
     assert_eq!(to_hex(&recovered), to_hex(&cleartext_rtcp()));
@@ -68,7 +68,7 @@ fn srtcp_aes256_gcm_decrypt_17_2() {
          b26ac3be 800005d4",
     );
 
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes256Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtcp_session_key(Profile::AeadAes256Gcm, &key, &salt);
     let mut rx = SrtcpSession::new_receiver(srtp_key);
     let recovered = rx.unprotect(&protected).unwrap();
     assert_eq!(to_hex(&recovered), to_hex(&cleartext_rtcp()));
@@ -78,7 +78,7 @@ fn srtcp_aes256_gcm_decrypt_17_2() {
 fn srtcp_aes128_gcm_roundtrip() {
     let key = hex("000102030405060708090a0b0c0d0e0f");
     let salt = hex("51756964 2070726f 2071756f");
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes128Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtcp_session_key(Profile::AeadAes128Gcm, &key, &salt);
 
     let mut tx = SrtcpSession::new_sender(srtp_key.clone());
     let mut out = vec![0u8; cleartext_rtcp().len() + 32];
@@ -94,7 +94,7 @@ fn srtcp_aes128_gcm_roundtrip() {
 fn srtcp_replay_rejected() {
     let key = hex("000102030405060708090a0b0c0d0e0f");
     let salt = hex("51756964 2070726f 2071756f");
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes128Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtcp_session_key(Profile::AeadAes128Gcm, &key, &salt);
 
     let mut tx = SrtcpSession::new_sender(srtp_key.clone());
     let mut out = vec![0u8; cleartext_rtcp().len() + 32];

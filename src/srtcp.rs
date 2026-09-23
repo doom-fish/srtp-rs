@@ -56,12 +56,25 @@ impl SrtcpSession {
     ///
     /// Primarily useful for resuming an externally-sequenced stream and for
     /// reproducing the published SRTCP test vectors, which fix the index.
-    pub fn set_index(&mut self, index: u32) {
-        self.index = index & INDEX_MASK;
+    ///
+    /// # Errors
+    /// Returns [`SrtpError::IndexReused`] if `index` is below the next index
+    /// (it may already have been used), and [`SrtpError::KeyExpired`] if it
+    /// does not fit in 31 bits.
+    pub fn set_index(&mut self, index: u32) -> Result<()> {
+        if index > INDEX_MASK {
+            return Err(SrtpError::KeyExpired);
+        }
+        if index < self.index {
+            return Err(SrtpError::IndexReused);
+        }
+        self.index = index;
+        Ok(())
     }
 
-    /// The next SRTCP index that will be used (sender) or the highest index
-    /// accepted so far is tracked separately by the replay window (receiver).
+    /// The next SRTCP index the sender will use; `2^31` once all 31-bit indices
+    /// have been used and the key must be replaced. Receivers track accepted
+    /// indices in their replay window.
     #[must_use]
     pub const fn index(&self) -> u32 {
         self.index
@@ -72,11 +85,15 @@ impl SrtcpSession {
     ///
     /// # Errors
     /// Returns [`SrtpError::TooShort`] if `rtcp` is shorter than the 8-octet
-    /// clear header, [`SrtpError::OutputTooSmall`] if `out` is too small, or
+    /// clear header, [`SrtpError::OutputTooSmall`] if `out` is too small,
+    /// [`SrtpError::KeyExpired`] once all `2^31` SRTCP indices are used, or
     /// [`SrtpError::Crypto`] on a cipher failure.
     pub fn protect(&mut self, rtcp: &[u8], out: &mut [u8]) -> Result<usize> {
         if rtcp.len() < HEADER_CLEAR {
             return Err(SrtpError::TooShort);
+        }
+        if self.index > INDEX_MASK {
+            return Err(SrtpError::KeyExpired);
         }
         let (enc_key, salt, auth_key) = self.key.srtcp_material();
         let profile = self.key.profile();
@@ -129,7 +146,7 @@ impl SrtcpSession {
             body_end + tag.len()
         };
 
-        self.index = (self.index + 1) & INDEX_MASK;
+        self.index += 1;
         Ok(written)
     }
 

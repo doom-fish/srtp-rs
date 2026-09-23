@@ -3,9 +3,12 @@
 //! RTP carries only a 16-bit sequence number, but SRTP needs a 48-bit packet
 //! index `i = 2^16 * ROC + SEQ` to build a unique per-packet IV. The ROC is the
 //! number of times the 16-bit sequence number has wrapped. It is never sent on
-//! the wire, so each endpoint maintains it locally: the sender simply counts
-//! wraps, and the receiver *estimates* the ROC of every incoming packet from
-//! the highest sequence number seen so far using the algorithm in Appendix A.
+//! the wire, so each endpoint maintains it locally: both the sender and the
+//! receiver *estimate* the ROC of every packet from the highest sequence number
+//! seen so far using the algorithm in Appendix A.
+
+use crate::error::{Result, SrtpError};
+use crate::replay::{ReplayCheck, ReplayWindow};
 
 /// Half of the 16-bit sequence-number space; the wrap-detection threshold.
 const SEQ_HALF: i32 = 0x8000;
@@ -18,13 +21,29 @@ pub const fn packet_index(roc: u32, seq: u16) -> u64 {
     (roc as u64) * (SEQ_MOD as u64) + (seq as u64)
 }
 
-/// Sender-side ROC tracking: the sequence number is assumed to advance
-/// monotonically, so the ROC is incremented whenever the sequence number wraps
-/// past zero.
+fn guess_roc(roc: u32, s_l: u16, seq: u16) -> Option<u32> {
+    let seq = i32::from(seq);
+    let s_l = i32::from(s_l);
+    if s_l < SEQ_HALF {
+        if seq - s_l > SEQ_HALF {
+            Some(roc.saturating_sub(1))
+        } else {
+            Some(roc)
+        }
+    } else if s_l - SEQ_HALF > seq {
+        roc.checked_add(1)
+    } else {
+        Some(roc)
+    }
+}
+
+/// Sender-side ROC tracking: the ROC of each outgoing sequence number is
+/// estimated as the receiver will estimate it, and an index is never protected
+/// twice.
 #[derive(Debug, Clone, Default)]
 pub struct SenderRoc {
-    roc: u32,
-    last_seq: Option<u16>,
+    highest: ReceiverRoc,
+    sent: ReplayWindow,
 }
 
 impl SenderRoc {
@@ -32,27 +51,35 @@ impl SenderRoc {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            roc: 0,
-            last_seq: None,
+            highest: ReceiverRoc::new(),
+            sent: ReplayWindow::new(),
+        }
+    }
+
+    #[allow(missing_docs)]
+    #[must_use]
+    pub const fn with_roc(roc: u32) -> Self {
+        Self {
+            highest: ReceiverRoc::with_roc(roc),
+            sent: ReplayWindow::new(),
         }
     }
 
     /// Record an outgoing sequence number and return the ROC to use for it.
-    pub fn next(&mut self, seq: u16) -> u32 {
-        if let Some(prev) = self.last_seq {
-            // A wrap is a large backwards jump (prev near 0xFFFF, seq near 0).
-            if seq < prev && (i32::from(prev) - i32::from(seq)) > SEQ_HALF {
-                self.roc = self.roc.wrapping_add(1);
-            }
+    pub fn next(&mut self, seq: u16) -> Result<u32> {
+        let (roc, index) = self.highest.estimate(seq)?;
+        if self.sent.check(index) == ReplayCheck::Replayed {
+            return Err(SrtpError::IndexReused);
         }
-        self.last_seq = Some(seq);
-        self.roc
+        self.sent.mark(index);
+        self.highest.update(seq, roc);
+        Ok(roc)
     }
 
     /// The current ROC value.
     #[must_use]
     pub const fn roc(&self) -> u32 {
-        self.roc
+        self.highest.roc()
     }
 }
 
@@ -62,7 +89,8 @@ impl SenderRoc {
 /// the ROC associated with it. For each incoming packet it guesses which ROC
 /// the sender must have used, which may be the current ROC, one less (a late
 /// packet from before the most recent wrap), or one more (a packet from just
-/// after a wrap that arrived before `s_l` caught up).
+/// after a wrap that arrived before `s_l` caught up). As in libsrtp, a packet
+/// is never placed before ROC zero.
 #[derive(Debug, Clone, Default)]
 pub struct ReceiverRoc {
     roc: u32,
@@ -74,6 +102,12 @@ impl ReceiverRoc {
     #[must_use]
     pub const fn new() -> Self {
         Self { roc: 0, s_l: None }
+    }
+
+    #[allow(missing_docs)]
+    #[must_use]
+    pub const fn with_roc(roc: u32) -> Self {
+        Self { roc, s_l: None }
     }
 
     /// The current ROC value (for the highest sequence number seen).
@@ -90,28 +124,13 @@ impl ReceiverRoc {
 
     /// Estimate the ROC and 48-bit index for an incoming sequence number
     /// without mutating any state (RFC 3711 Appendix A `guess` step).
-    #[must_use]
-    pub fn estimate(&self, seq: u16) -> (u32, u64) {
-        let Some(s_l) = self.s_l else {
+    pub fn estimate(&self, seq: u16) -> Result<(u32, u64)> {
+        let roc = match self.s_l {
             // First packet: ROC is whatever we have (zero by default).
-            return (self.roc, packet_index(self.roc, seq));
+            None => self.roc,
+            Some(s_l) => guess_roc(self.roc, s_l, seq).ok_or(SrtpError::KeyExpired)?,
         };
-
-        let seq_i = i32::from(seq);
-        let s_l_i = i32::from(s_l);
-        let v = if s_l_i < SEQ_HALF {
-            if seq_i.wrapping_sub(s_l_i) > SEQ_HALF {
-                self.roc.wrapping_sub(1)
-            } else {
-                self.roc
-            }
-        } else if s_l_i.wrapping_sub(SEQ_HALF) > seq_i {
-            self.roc.wrapping_add(1)
-        } else {
-            self.roc
-        };
-
-        (v, packet_index(v, seq))
+        Ok((roc, packet_index(roc, seq)))
     }
 
     /// Commit an accepted packet, advancing `s_l`/ROC if this packet's index is

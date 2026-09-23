@@ -46,7 +46,7 @@ fn assert_srtcp_vector(key: &SrtpKey, protected: &str) {
     let expected = hex(protected);
 
     let mut tx = SrtcpSession::new_sender(key.clone());
-    tx.set_index(1);
+    tx.set_index(1).unwrap();
     let mut out = vec![0u8; expected.len()];
     let n = tx.protect(&clear, &mut out).unwrap();
     assert_eq!(to_hex(&out[..n]), to_hex(&expected));

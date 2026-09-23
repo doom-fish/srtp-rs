@@ -1,10 +1,10 @@
 //! RFC 7714 AES-GCM SRTP test vectors (§16.1 and §16.2).
 
 mod common;
-use common::{hex, to_hex};
+use common::{hex, srtp_session_key, to_hex};
 
 use srtp::rtp::{Packet, RtpPacket};
-use srtp::{Profile, SrtpKey, SrtpSession};
+use srtp::{Profile, SrtpSession};
 
 /// The cleartext RTP packet shared by §16.1.1 and §16.2.1.
 fn cleartext_rtp() -> Vec<u8> {
@@ -28,7 +28,7 @@ fn srtp_aes128_gcm_encrypt_16_1_1() {
          0cce",
     );
 
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes128Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtp_session_key(Profile::AeadAes128Gcm, &key, &salt);
     let mut tx = SrtpSession::new_sender(srtp_key);
 
     let clear = cleartext_rtp();
@@ -52,7 +52,7 @@ fn srtp_aes128_gcm_decrypt_16_1_2() {
          0cce",
     );
 
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes128Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtp_session_key(Profile::AeadAes128Gcm, &key, &salt);
     let mut rx = SrtpSession::new_receiver(srtp_key);
 
     let recovered = rx.unprotect(&mut protected).unwrap();
@@ -71,7 +71,7 @@ fn srtp_aes256_gcm_encrypt_16_2_1() {
          6c13",
     );
 
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes256Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtp_session_key(Profile::AeadAes256Gcm, &key, &salt);
     let mut tx = SrtpSession::new_sender(srtp_key);
 
     let clear = cleartext_rtp();
@@ -95,7 +95,7 @@ fn srtp_aes256_gcm_roundtrip_16_2() {
          6c13",
     );
 
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes256Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtp_session_key(Profile::AeadAes256Gcm, &key, &salt);
     let mut rx = SrtpSession::new_receiver(srtp_key);
     let recovered = rx.unprotect(&mut protected).unwrap();
     assert_eq!(to_hex(recovered.as_bytes()), to_hex(&cleartext_rtp()));
@@ -116,7 +116,7 @@ fn srtp_gcm_tampered_tag_rejected() {
     let last = protected.len() - 1;
     protected[last] ^= 0x01;
 
-    let srtp_key = SrtpKey::from_session(Profile::AeadAes128Gcm, &key, &salt, &[]).unwrap();
+    let srtp_key = srtp_session_key(Profile::AeadAes128Gcm, &key, &salt);
     let mut rx = SrtpSession::new_receiver(srtp_key);
     assert!(rx.unprotect(&mut protected).is_err());
 }

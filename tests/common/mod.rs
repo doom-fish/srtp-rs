@@ -22,3 +22,25 @@ pub fn to_hex(b: &[u8]) -> String {
         s
     })
 }
+
+#[must_use]
+pub fn srtp_session_key(profile: srtp::Profile, key: &[u8], salt: &[u8]) -> srtp::SrtpKey {
+    let other: Vec<u8> = key.iter().map(|b| !b).collect();
+    srtp::SrtpKey::from_session(
+        profile,
+        srtp::SessionKeys { encryption: key, salt, authentication: &[] },
+        srtp::SessionKeys { encryption: &other, salt, authentication: &[] },
+    )
+    .unwrap()
+}
+
+#[must_use]
+pub fn srtcp_session_key(profile: srtp::Profile, key: &[u8], salt: &[u8]) -> srtp::SrtpKey {
+    let other: Vec<u8> = key.iter().map(|b| !b).collect();
+    srtp::SrtpKey::from_session(
+        profile,
+        srtp::SessionKeys { encryption: &other, salt, authentication: &[] },
+        srtp::SessionKeys { encryption: key, salt, authentication: &[] },
+    )
+    .unwrap()
+}

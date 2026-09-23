@@ -3,16 +3,17 @@
 //! An [`SrtpKey`] holds the per-session encryption key, salt, and (for the
 //! AES-CM profiles) authentication key for both the SRTP and SRTCP directions.
 //! It can be built either by running the RFC 3711 key-derivation function over a
-//! master key and salt ([`SrtpKey::from_master`]) or by injecting
-//! externally-derived session keys ([`SrtpKey::from_session`]) — the latter is
-//! what DTLS-SRTP exporters and the RFC 7714 test vectors provide.
+//! master key and salt ([`SrtpKey::from_master`]), which is what DTLS-SRTP
+//! (RFC 5764) exports, or by injecting externally-derived session keys for
+//! each direction ([`SrtpKey::from_session`]), which is what the RFC 7714 test
+//! vectors provide.
 //!
 //! An [`SrtpSession`] binds a key to one direction (sender or receiver) and owns
 //! the rollover counter and, for receivers, the replay window.
 
 use rtp::{Packet, RtpPacket, RtpPacketMut};
 
-use crate::decrypt::verify_hmac;
+use crate::decrypt::{ct_eq, verify_hmac};
 use crate::encrypt::{aes_cm_xor, gcm_open, gcm_seal, hmac_sha1_tag, srtp_cm_iv, srtp_gcm_iv};
 use crate::error::{Result, SrtpError};
 use crate::kdf;
@@ -33,6 +34,30 @@ pub struct SrtpKey {
     srtcp_enc: Vec<u8>,
     srtcp_salt: Vec<u8>,
     srtcp_auth: Vec<u8>,
+}
+
+#[allow(missing_docs)]
+#[derive(Clone, Copy)]
+pub struct SessionKeys<'a> {
+    pub encryption: &'a [u8],
+    pub salt: &'a [u8],
+    pub authentication: &'a [u8],
+}
+
+impl SessionKeys<'_> {
+    fn check(self, profile: Profile) -> Result<()> {
+        let lengths = [
+            (profile.session_key_len(), self.encryption.len()),
+            (profile.session_salt_len(), self.salt.len()),
+            (profile.auth_key_len(), self.authentication.len()),
+        ];
+        for (expected, actual) in lengths {
+            if expected != actual {
+                return Err(SrtpError::BadKeyLength { expected, actual });
+            }
+        }
+        Ok(())
+    }
 }
 
 impl core::fmt::Debug for SrtpKey {
@@ -81,50 +106,39 @@ impl SrtpKey {
         })
     }
 
-    /// Build a key directly from already-derived session material, applying the
-    /// same encryption key, salt, and (AES-CM) authentication key to both the
-    /// SRTP and SRTCP directions.
+    /// Build a key directly from already-derived session material for the SRTP
+    /// and the SRTCP direction.
     ///
-    /// This is the constructor used with DTLS-SRTP exporters that hand back
-    /// session keys directly, and with the RFC 7714 / RFC 3711 published test
-    /// vectors, which specify session keys rather than master keys.
+    /// This is the constructor used with the RFC 7714 published test vectors,
+    /// which specify session keys rather than master keys. DTLS-SRTP exports a
+    /// master key and salt; use [`SrtpKey::from_master`] for those.
     ///
     /// # Errors
     /// Returns [`SrtpError::BadKeyLength`] if any length disagrees with
-    /// `profile`.
+    /// `profile`, and [`SrtpError::SessionKeyReuse`] if both directions share
+    /// an encryption key or (AES-CM) an authentication key: the SRTP and SRTCP
+    /// IVs coincide, so one key for both would repeat the keystream.
     pub fn from_session(
         profile: Profile,
-        enc_key: &[u8],
-        salt: &[u8],
-        auth_key: &[u8],
+        media: SessionKeys<'_>,
+        control: SessionKeys<'_>,
     ) -> Result<Self> {
-        if enc_key.len() != profile.session_key_len() {
-            return Err(SrtpError::BadKeyLength {
-                expected: profile.session_key_len(),
-                actual: enc_key.len(),
-            });
-        }
-        if salt.len() != profile.session_salt_len() {
-            return Err(SrtpError::BadKeyLength {
-                expected: profile.session_salt_len(),
-                actual: salt.len(),
-            });
-        }
-        if auth_key.len() != profile.auth_key_len() {
-            return Err(SrtpError::BadKeyLength {
-                expected: profile.auth_key_len(),
-                actual: auth_key.len(),
-            });
+        media.check(profile)?;
+        control.check(profile)?;
+        let shared_auth =
+            profile.auth_key_len() > 0 && ct_eq(media.authentication, control.authentication);
+        if ct_eq(media.encryption, control.encryption) || shared_auth {
+            return Err(SrtpError::SessionKeyReuse);
         }
 
         Ok(Self {
             profile,
-            srtp_enc: enc_key.to_vec(),
-            srtp_salt: salt.to_vec(),
-            srtp_auth: auth_key.to_vec(),
-            srtcp_enc: enc_key.to_vec(),
-            srtcp_salt: salt.to_vec(),
-            srtcp_auth: auth_key.to_vec(),
+            srtp_enc: media.encryption.to_vec(),
+            srtp_salt: media.salt.to_vec(),
+            srtp_auth: media.authentication.to_vec(),
+            srtcp_enc: control.encryption.to_vec(),
+            srtcp_salt: control.salt.to_vec(),
+            srtcp_auth: control.authentication.to_vec(),
         })
     }
 
@@ -171,6 +185,16 @@ impl SrtpSession {
         Self::new_sender(key)
     }
 
+    #[allow(missing_docs)]
+    #[must_use]
+    pub fn with_roc(self, roc: u32) -> Self {
+        Self {
+            sender_roc: SenderRoc::with_roc(roc),
+            receiver_roc: ReceiverRoc::with_roc(roc),
+            ..self
+        }
+    }
+
     /// The negotiated protection profile.
     #[must_use]
     pub const fn profile(&self) -> Profile {
@@ -192,7 +216,9 @@ impl SrtpSession {
     ///
     /// # Errors
     /// Returns [`SrtpError::OutputTooSmall`] if `out` cannot hold the protected
-    /// packet, or [`SrtpError::Crypto`] on a cipher failure.
+    /// packet, [`SrtpError::IndexReused`] if this packet index was already
+    /// protected, [`SrtpError::KeyExpired`] once the `2^48`-packet key lifetime
+    /// is used up, or [`SrtpError::Crypto`] on a cipher failure.
     pub fn protect<P: Packet>(&mut self, pkt: &P, out: &mut [u8]) -> Result<usize> {
         let wire = pkt.as_bytes();
         let payload_off = pkt.payload_offset();
@@ -200,7 +226,6 @@ impl SrtpSession {
         let payload = &wire[payload_off..];
         let ssrc = pkt.header().ssrc();
         let seq = pkt.header().sequence_number();
-        let roc = self.sender_roc.next(seq);
 
         let needed = payload_off + payload.len() + self.key.profile.tag_len();
         if out.len() < needed {
@@ -209,6 +234,7 @@ impl SrtpSession {
                 provided: out.len(),
             });
         }
+        let roc = self.sender_roc.next(seq)?;
 
         out[..payload_off].copy_from_slice(header);
 
@@ -242,6 +268,7 @@ impl SrtpSession {
     ///
     /// # Errors
     /// Returns [`SrtpError::Replay`] if the packet index is a replay,
+    /// [`SrtpError::KeyExpired`] if it lies past the `2^48`-packet key lifetime,
     /// [`SrtpError::AuthFailed`] if authentication fails, [`SrtpError::TooShort`]
     /// if the buffer is too small to hold the framing, or an [`SrtpError::Rtp`]
     /// error if the recovered packet does not parse.
@@ -255,7 +282,7 @@ impl SrtpSession {
             )
         };
 
-        let (roc, index) = self.receiver_roc.estimate(seq);
+        let (roc, index) = self.receiver_roc.estimate(seq)?;
         if self.replay.check(index) == ReplayCheck::Replayed {
             return Err(SrtpError::Replay);
         }
