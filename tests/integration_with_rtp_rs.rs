@@ -25,7 +25,8 @@ fn roundtrip_stream(profile: Profile) {
             .ssrc(0x1122_3344)
             .sequence_number(i)
             .payload(&payload)
-            .build();
+            .build()
+            .unwrap();
 
         let mut buf = vec![0u8; payload.len() + 64];
         let n = tx.protect(&packet.as_view(), &mut buf).unwrap();
@@ -70,7 +71,8 @@ fn integration_sequence_wrap() {
             .ssrc(0x1122_3344)
             .sequence_number(seq)
             .payload(&payload)
-            .build();
+            .build()
+            .unwrap();
 
         let mut buf = vec![0u8; payload.len() + 64];
         let n = tx.protect(&packet.as_view(), &mut buf).unwrap();
@@ -92,7 +94,8 @@ fn integration_replay_is_rejected() {
         .ssrc(0x1122_3344)
         .sequence_number(7)
         .payload(&payload)
-        .build();
+        .build()
+        .unwrap();
     let mut buf = vec![0u8; payload.len() + 64];
     let n = tx.protect(&packet.as_view(), &mut buf).unwrap();
     buf.truncate(n);
@@ -114,7 +117,8 @@ fn integration_tamper_is_rejected() {
         .ssrc(0x1122_3344)
         .sequence_number(1)
         .payload(&payload)
-        .build();
+        .build()
+        .unwrap();
     let mut buf = vec![0u8; payload.len() + 64];
     let n = tx.protect(&packet.as_view(), &mut buf).unwrap();
     buf.truncate(n);

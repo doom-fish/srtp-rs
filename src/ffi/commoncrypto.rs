@@ -110,7 +110,7 @@ pub fn aes_ctr(key: &[u8], iv: &[u8; 16], input: &[u8], output: &mut [u8]) -> Re
             0,
             0,
             KCC_MODE_OPTION_CTR_BE,
-            &mut cryptor,
+            &raw mut cryptor,
         )
     };
     if status != KCC_SUCCESS {
@@ -126,7 +126,7 @@ pub fn aes_ctr(key: &[u8], iv: &[u8; 16], input: &[u8], output: &mut [u8]) -> Re
             input.len(),
             output.as_mut_ptr(),
             output.len(),
-            &mut moved,
+            &raw mut moved,
         )
     };
     // SAFETY: cryptor was successfully created above.

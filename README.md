@@ -49,7 +49,8 @@ let packet = RtpPacket::builder()
     .ssrc(0xcafe_b0ba)
     .sequence_number(1000)
     .payload(b"hello srtp")
-    .build();
+    .build()
+    .unwrap();
 
 let mut buf = vec![0u8; 64];
 let n = sender.protect(&packet.as_view(), &mut buf).unwrap();
@@ -74,7 +75,8 @@ let mut rx = SrtcpSession::new_receiver(key);
 
 let rtcp = CompoundPacket::new()
     .add(RtcpPacket::receiver_report().ssrc(0x4d61_7273).build())
-    .encode();
+    .encode()
+    .unwrap();
 
 let mut buf = vec![0u8; rtcp.len() + 32];
 let n = tx.protect(&rtcp, &mut buf).unwrap();

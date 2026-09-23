@@ -2,7 +2,7 @@
 name = "srtp-rs"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.76"
+rust-version = "1.82"
 license = "MIT OR Apache-2.0"
 description = "Pure-Rust SRTP / SRTCP (RFC 3711, RFC 7714 AES-GCM) layered on rtp-rs, using CryptoKit AES-GCM and a CommonCrypto AES-CTR key-derivation function"
 authors = ["Per Johansson <per@doom.fish>"]
@@ -27,9 +27,8 @@ pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 
 [dependencies]
-libc = "0.2"
-rtp = { path = "../rtp-rs", package = "rtp-rs" }
-cryptokit = { path = "../cryptokit-rs", package = "cryptokit-rs" }
+rtp = { path = "../rtp-rs", package = "rtp-rs", version = ">=0.2, <0.3" }
+cryptokit = { path = "../cryptokit-rs", package = "cryptokit-rs", version = ">=0.3, <0.4" }
 
 [[example]]
 name = "01_protect_packet"

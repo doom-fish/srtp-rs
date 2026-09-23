@@ -21,7 +21,8 @@ fn main() {
         .ssrc(0x0102_0304)
         .sequence_number(42)
         .payload(payload)
-        .build();
+        .build()
+        .expect("valid RTP packet");
 
     let mut buf = vec![0u8; payload.len() + 64];
     let n = sender

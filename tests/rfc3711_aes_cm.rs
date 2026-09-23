@@ -48,7 +48,8 @@ fn cm_roundtrip(profile: Profile) {
         .ssrc(0xdead_beef)
         .sequence_number(0x1234)
         .payload(&payload)
-        .build();
+        .build()
+        .unwrap();
     let plain = packet.as_view().as_bytes().to_vec();
 
     let mut tx = SrtpSession::new_sender(key.clone());

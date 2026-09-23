@@ -19,7 +19,8 @@ fn main() {
         .ssrc(0xcafe_b0ba)
         .sequence_number(1000)
         .payload(payload)
-        .build();
+        .build()
+        .expect("valid RTP packet");
 
     let plain = packet.as_view();
     println!("cleartext RTP : {}", hex(plain.as_bytes()));

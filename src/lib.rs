@@ -35,7 +35,7 @@
 //! let key = SrtpKey::from_session(Profile::AeadAes128Gcm, &enc, &salt, &[]).unwrap();
 //! let mut tx = SrtpSession::new_sender(key);
 //!
-//! let rtp = RtpPacket::builder().ssrc(0x1234).sequence_number(1).payload(b"hi").build();
+//! let rtp = RtpPacket::builder().ssrc(0x1234).sequence_number(1).payload(b"hi").build().unwrap();
 //! let view = rtp.as_view();
 //! let mut out = vec![0u8; view.as_bytes().len() + 16];
 //! let n = tx.protect(&view, &mut out).unwrap();
