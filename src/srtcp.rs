@@ -125,7 +125,7 @@ impl SrtcpSession {
         let body = &rtcp[HEADER_CLEAR..];
 
         let written = if profile.is_aead() {
-            let needed = HEADER_CLEAR + body.len() + profile.tag_len() + TRAILER_LEN;
+            let needed = HEADER_CLEAR + body.len() + profile.srtcp_tag_len() + TRAILER_LEN;
             if out.len() < needed {
                 return Err(SrtpError::OutputTooSmall {
                     needed,
@@ -144,7 +144,7 @@ impl SrtcpSession {
             out[trailer_at..trailer_at + TRAILER_LEN].copy_from_slice(&esrtcp_bytes);
             trailer_at + TRAILER_LEN
         } else {
-            let needed = HEADER_CLEAR + body.len() + TRAILER_LEN + profile.tag_len();
+            let needed = HEADER_CLEAR + body.len() + TRAILER_LEN + profile.srtcp_tag_len();
             if out.len() < needed {
                 return Err(SrtpError::OutputTooSmall {
                     needed,
@@ -160,7 +160,7 @@ impl SrtcpSession {
             let trailer_at = HEADER_CLEAR + body.len();
             out[trailer_at..trailer_at + TRAILER_LEN].copy_from_slice(&esrtcp_bytes);
             let body_end = trailer_at + TRAILER_LEN;
-            let tag = hmac_sha1_tag(auth_key, &out[..body_end], profile.tag_len());
+            let tag = hmac_sha1_tag(auth_key, &out[..body_end], profile.srtcp_tag_len());
             out[body_end..body_end + tag.len()].copy_from_slice(&tag);
             body_end + tag.len()
         };
@@ -181,7 +181,7 @@ impl SrtcpSession {
     pub fn unprotect(&mut self, srtcp: &[u8]) -> Result<Vec<u8>> {
         let (enc_key, salt, auth_key) = self.key.srtcp_material();
         let profile = self.key.profile();
-        let tag_len = profile.tag_len();
+        let tag_len = profile.srtcp_tag_len();
 
         if profile.is_aead() {
             // Layout: header(8) || ciphertext+tag || E||index(4)

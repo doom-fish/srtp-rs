@@ -70,6 +70,14 @@ fn libsrtp_aes_cm_128_hmac_sha1_80_srtcp_packet() {
 }
 
 #[test]
+fn libsrtp_aes_cm_128_hmac_sha1_32_srtcp_packet_uses_the_80_bit_tag() {
+    let key = master_key(Profile::AesCm128HmacSha1_32, CM_MASTER_KEY, CM_MASTER_SALT);
+    assert_srtcp_vector(&key, CM_SRTCP);
+    assert_eq!(Profile::AesCm128HmacSha1_32.tag_len(), 4);
+    assert_eq!(Profile::AesCm128HmacSha1_32.srtcp_tag_len(), 10);
+}
+
+#[test]
 fn libsrtp_aead_aes_128_gcm_srtp_packet() {
     let key = master_key(Profile::AeadAes128Gcm, GCM_MASTER_KEY, GCM_MASTER_SALT);
     assert_srtp_vector(&key, GCM_SRTP);

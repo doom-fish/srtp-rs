@@ -98,13 +98,22 @@ impl Profile {
     }
 
     /// Length in bytes of the authentication tag appended to a protected
-    /// packet (the AEAD tag for GCM, the truncated HMAC for AES-CM).
+    /// SRTP packet (the AEAD tag for GCM, the truncated HMAC for AES-CM).
     #[must_use]
     pub const fn tag_len(self) -> usize {
         match self {
             Self::AeadAes128Gcm | Self::AeadAes256Gcm => 16,
             Self::AesCm128HmacSha1_80 => 10,
             Self::AesCm128HmacSha1_32 => 4,
+        }
+    }
+
+    #[allow(missing_docs)]
+    #[must_use]
+    pub const fn srtcp_tag_len(self) -> usize {
+        match self {
+            Self::AeadAes128Gcm | Self::AeadAes256Gcm => 16,
+            Self::AesCm128HmacSha1_80 | Self::AesCm128HmacSha1_32 => 10,
         }
     }
 
