@@ -19,7 +19,7 @@ intentionally deferred, and the honest gaps.
 | `AEAD_AES_128_GCM` | 0x0007 | ✅ | ✅ | RFC 7714 §16.1, §17.1, §17.3 (byte-exact); libsrtp `srtp_validate_gcm` |
 | `AEAD_AES_256_GCM` | 0x0008 | ✅ | ✅ | RFC 7714 §16.2 (SRTP), §17.2 and §17.4 (SRTCP verify) |
 | `AES_CM_128_HMAC_SHA1_80` | 0x0001 | ✅ | ✅ | libsrtp `srtp_validate` SRTP and SRTCP packets (byte-exact); RFC 3711 §B.2 keystream |
-| `AES_CM_128_HMAC_SHA1_32` | 0x0002 | ✅ | ✅ | round-trip only (same cipher path as `_80`, 4-byte tag) |
+| `AES_CM_128_HMAC_SHA1_32` | 0x0002 | ✅ | ✅ | SRTP round-trip (4-byte tag); SRTCP uses the 80-bit tag (RFC 5764 §4.1.2) and matches libsrtp's `srtp_validate` packet |
 
 ## Building blocks
 
