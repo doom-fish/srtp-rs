@@ -69,7 +69,10 @@ impl ReplayWindow {
         if !(MIN_WINDOW_SIZE..=MAX_WINDOW_SIZE).contains(&size) {
             return Err(SrtpError::InvalidReplayWindow(size));
         }
-        Ok(Self { size, ..Self::new() })
+        Ok(Self {
+            size,
+            ..Self::new()
+        })
     }
 
     #[allow(missing_docs)]

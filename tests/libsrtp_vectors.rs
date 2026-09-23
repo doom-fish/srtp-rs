@@ -32,7 +32,9 @@ fn assert_srtp_vector(key: &SrtpKey, protected: &str) {
 
     let mut tx = SrtpSession::new_sender(key.clone());
     let mut out = vec![0u8; expected.len()];
-    let n = tx.protect(&RtpPacket::parse(&clear).unwrap(), &mut out).unwrap();
+    let n = tx
+        .protect(&RtpPacket::parse(&clear).unwrap(), &mut out)
+        .unwrap();
     assert_eq!(to_hex(&out[..n]), to_hex(&expected));
 
     let mut rx = SrtpSession::new_receiver(key.clone());

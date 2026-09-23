@@ -8,10 +8,16 @@ use srtp::ffi::commoncrypto::{aes_ctr, aes_ctr_in_place, aes_ctr_keystream};
 use srtp::rtp::{Packet, RtpPacket};
 use srtp::{Profile, SessionKeys, SrtpKey, SrtpSession};
 
-const ODD_LENGTHS: [usize; 19] = [0, 1, 2, 3, 7, 15, 16, 17, 31, 32, 33, 47, 63, 65, 100, 255, 1000, 1500, 4097];
+const ODD_LENGTHS: [usize; 19] = [
+    0, 1, 2, 3, 7, 15, 16, 17, 31, 32, 33, 47, 63, 65, 100, 255, 1000, 1500, 4097,
+];
 
 fn pattern(len: usize) -> Vec<u8> {
-    (0u8..=u8::MAX).cycle().take(len).map(|b| b.wrapping_mul(31) ^ 0x5a).collect()
+    (0u8..=u8::MAX)
+        .cycle()
+        .take(len)
+        .map(|b| b.wrapping_mul(31) ^ 0x5a)
+        .collect()
 }
 
 #[test]
@@ -45,7 +51,12 @@ fn in_place_ctr_matches_the_aes_gcm_counter_stream_for_odd_lengths() {
             let sealed = AesGcm::seal(&plaintext, &symmetric, Some(&nonce)).unwrap();
             let mut data = plaintext;
             aes_ctr_in_place(&key, &counter, &mut data).unwrap();
-            assert_eq!(to_hex(&data), to_hex(sealed.ciphertext()), "{}-byte key, length {len}", key.len());
+            assert_eq!(
+                to_hex(&data),
+                to_hex(sealed.ciphertext()),
+                "{}-byte key, length {len}",
+                key.len()
+            );
         }
     }
 }
@@ -76,8 +87,16 @@ fn aes_cm_srtp_payloads_of_every_length_match_the_keystream() {
     let salt = hex("f0f1f2f3f4f5f6f7f8f9fafbfcfd");
     let key = SrtpKey::from_session(
         Profile::AesCm128HmacSha1_80,
-        SessionKeys { encryption: &enc, salt: &salt, authentication: &[0x11; 20] },
-        SessionKeys { encryption: &[0x22; 16], salt: &salt, authentication: &[0x33; 20] },
+        SessionKeys {
+            encryption: &enc,
+            salt: &salt,
+            authentication: &[0x11; 20],
+        },
+        SessionKeys {
+            encryption: &[0x22; 16],
+            salt: &salt,
+            authentication: &[0x33; 20],
+        },
     )
     .unwrap();
     let mut tx = SrtpSession::new_sender(key.clone());
@@ -98,8 +117,16 @@ fn aes_cm_srtp_payloads_of_every_length_match_the_keystream() {
 
         let iv = srtp_cm_iv(&salt, 0x1234_5678, 0, seq);
         let keystream = aes_ctr_keystream(&enc, &iv, len).unwrap();
-        let expected: Vec<u8> = payload.iter().zip(keystream.iter()).map(|(p, k)| p ^ k).collect();
-        assert_eq!(to_hex(&out[header_len..header_len + len]), to_hex(&expected), "length {len}");
+        let expected: Vec<u8> = payload
+            .iter()
+            .zip(keystream.iter())
+            .map(|(p, k)| p ^ k)
+            .collect();
+        assert_eq!(
+            to_hex(&out[header_len..header_len + len]),
+            to_hex(&expected),
+            "length {len}"
+        );
 
         let recovered = rx.unprotect(&mut out[..n]).unwrap();
         assert_eq!(recovered.payload(), &payload[..]);

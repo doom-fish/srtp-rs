@@ -28,8 +28,16 @@ pub fn srtp_session_key(profile: srtp::Profile, key: &[u8], salt: &[u8]) -> srtp
     let other: Vec<u8> = key.iter().map(|b| !b).collect();
     srtp::SrtpKey::from_session(
         profile,
-        srtp::SessionKeys { encryption: key, salt, authentication: &[] },
-        srtp::SessionKeys { encryption: &other, salt, authentication: &[] },
+        srtp::SessionKeys {
+            encryption: key,
+            salt,
+            authentication: &[],
+        },
+        srtp::SessionKeys {
+            encryption: &other,
+            salt,
+            authentication: &[],
+        },
     )
     .unwrap()
 }
@@ -39,8 +47,16 @@ pub fn srtcp_session_key(profile: srtp::Profile, key: &[u8], salt: &[u8]) -> srt
     let other: Vec<u8> = key.iter().map(|b| !b).collect();
     srtp::SrtpKey::from_session(
         profile,
-        srtp::SessionKeys { encryption: &other, salt, authentication: &[] },
-        srtp::SessionKeys { encryption: key, salt, authentication: &[] },
+        srtp::SessionKeys {
+            encryption: &other,
+            salt,
+            authentication: &[],
+        },
+        srtp::SessionKeys {
+            encryption: key,
+            salt,
+            authentication: &[],
+        },
     )
     .unwrap()
 }

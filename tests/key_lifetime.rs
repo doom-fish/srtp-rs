@@ -46,7 +46,10 @@ fn srtcp_sender_stops_after_the_last_31_bit_index() {
     assert_eq!(rx.unprotect(&out[..n]).unwrap(), rtcp);
 
     assert_eq!(tx.index(), 0x8000_0000);
-    assert!(matches!(tx.protect(&rtcp, &mut out), Err(SrtpError::KeyExpired)));
+    assert!(matches!(
+        tx.protect(&rtcp, &mut out),
+        Err(SrtpError::KeyExpired)
+    ));
 }
 
 #[test]
@@ -59,7 +62,10 @@ fn srtcp_set_index_only_moves_forward() {
     tx.protect(&rtcp, &mut out).unwrap();
     assert!(matches!(tx.set_index(10), Err(SrtpError::IndexReused)));
     assert!(matches!(tx.set_index(0), Err(SrtpError::IndexReused)));
-    assert!(matches!(tx.set_index(0x8000_0000), Err(SrtpError::KeyExpired)));
+    assert!(matches!(
+        tx.set_index(0x8000_0000),
+        Err(SrtpError::KeyExpired)
+    ));
     tx.set_index(11).unwrap();
     assert_eq!(tx.index(), 11);
 }
@@ -85,11 +91,17 @@ fn srtp_sender_stops_before_the_rollover_counter_wraps() {
     let mut last = protect(&mut tx, 0xffff).unwrap();
     assert_eq!(rx.unprotect(&mut last).unwrap().payload(), b"media payload");
     assert_eq!(tx.sender_roc(), u32::MAX);
-    assert!(matches!(protect(&mut tx, 0x0000), Err(SrtpError::KeyExpired)));
+    assert!(matches!(
+        protect(&mut tx, 0x0000),
+        Err(SrtpError::KeyExpired)
+    ));
 
     let mut past_the_end = rtp(0x0000).as_view().as_bytes().to_vec();
     past_the_end.extend_from_slice(&[0u8; 16]);
-    assert!(matches!(rx.unprotect(&mut past_the_end), Err(SrtpError::KeyExpired)));
+    assert!(matches!(
+        rx.unprotect(&mut past_the_end),
+        Err(SrtpError::KeyExpired)
+    ));
 }
 
 #[test]
@@ -116,8 +128,16 @@ fn from_session_rejects_keys_shared_by_srtp_and_srtcp() {
     let gcm = |srtp_enc: &[u8], srtcp_enc: &[u8]| {
         SrtpKey::from_session(
             Profile::AeadAes128Gcm,
-            SessionKeys { encryption: srtp_enc, salt: &gcm_salt, authentication: &[] },
-            SessionKeys { encryption: srtcp_enc, salt: &gcm_salt, authentication: &[] },
+            SessionKeys {
+                encryption: srtp_enc,
+                salt: &gcm_salt,
+                authentication: &[],
+            },
+            SessionKeys {
+                encryption: srtcp_enc,
+                salt: &gcm_salt,
+                authentication: &[],
+            },
         )
     };
     assert!(matches!(gcm(&enc, &enc), Err(SrtpError::SessionKeyReuse)));
@@ -126,14 +146,25 @@ fn from_session_rejects_keys_shared_by_srtp_and_srtcp() {
     let cm = |srtp_auth: &[u8], srtcp_auth: &[u8]| {
         SrtpKey::from_session(
             Profile::AesCm128HmacSha1_80,
-            SessionKeys { encryption: &enc, salt: &cm_salt, authentication: srtp_auth },
-            SessionKeys { encryption: &other, salt: &cm_salt, authentication: srtcp_auth },
+            SessionKeys {
+                encryption: &enc,
+                salt: &cm_salt,
+                authentication: srtp_auth,
+            },
+            SessionKeys {
+                encryption: &other,
+                salt: &cm_salt,
+                authentication: srtcp_auth,
+            },
         )
     };
     assert!(matches!(cm(&auth, &auth), Err(SrtpError::SessionKeyReuse)));
     assert!(cm(&auth, &other_auth).is_ok());
     assert!(matches!(
         cm(&auth, &auth[..10]),
-        Err(SrtpError::BadKeyLength { expected: 20, actual: 10 })
+        Err(SrtpError::BadKeyLength {
+            expected: 20,
+            actual: 10
+        })
     ));
 }

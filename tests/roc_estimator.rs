@@ -66,7 +66,13 @@ fn receiver_handles_late_packet_from_before_wrap() {
 fn sender_and_receiver_agree_when_the_sender_reorders_across_a_wrap() {
     let mut tx = SenderRoc::new();
     let mut rx = ReceiverRoc::new();
-    for (seq, expected_roc) in [(0xffff_u16, 0), (0x0000, 1), (0xfffe, 0), (0x0001, 1), (0x0002, 1)] {
+    for (seq, expected_roc) in [
+        (0xffff_u16, 0),
+        (0x0000, 1),
+        (0xfffe, 0),
+        (0x0001, 1),
+        (0x0002, 1),
+    ] {
         let sent_roc = tx.next(seq).unwrap();
         let (guessed_roc, _) = rx.estimate(seq).unwrap();
         rx.update(seq, guessed_roc);
@@ -105,5 +111,8 @@ fn rollover_counter_never_wraps_past_its_last_value() {
     let (roc, index) = rx.estimate(0xffff).unwrap();
     assert_eq!(index, (1 << 48) - 1);
     rx.update(0xffff, roc);
-    assert!(matches!(rx.estimate(0x0000), Err(srtp::SrtpError::KeyExpired)));
+    assert!(matches!(
+        rx.estimate(0x0000),
+        Err(srtp::SrtpError::KeyExpired)
+    ));
 }

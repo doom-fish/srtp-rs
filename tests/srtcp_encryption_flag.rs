@@ -30,8 +30,16 @@ fn gcm_128() -> SrtpKey {
 fn aes_cm_key() -> SrtpKey {
     SrtpKey::from_session(
         Profile::AesCm128HmacSha1_80,
-        SessionKeys { encryption: &[1u8; 16], salt: &[2u8; 14], authentication: &[3u8; 20] },
-        SessionKeys { encryption: &[4u8; 16], salt: &[5u8; 14], authentication: &[6u8; 20] },
+        SessionKeys {
+            encryption: &[1u8; 16],
+            salt: &[2u8; 14],
+            authentication: &[3u8; 20],
+        },
+        SessionKeys {
+            encryption: &[4u8; 16],
+            salt: &[5u8; 14],
+            authentication: &[6u8; 20],
+        },
     )
     .unwrap()
 }
@@ -49,7 +57,10 @@ fn rfc7714_17_3_aes128_gcm_tag_only_packet_verifies() {
     let mut rx = SrtcpSession::new_receiver(gcm_128());
     let recovered = rx.unprotect(&tagged(TAG_128)).unwrap();
     assert_eq!(to_hex(&recovered), to_hex(&cleartext_rtcp()));
-    assert!(matches!(rx.unprotect(&tagged(TAG_128)), Err(SrtpError::Replay)));
+    assert!(matches!(
+        rx.unprotect(&tagged(TAG_128)),
+        Err(SrtpError::Replay)
+    ));
 }
 
 #[test]
@@ -63,7 +74,10 @@ fn rfc7714_17_4_aes256_gcm_tag_only_packet_verifies() {
 #[test]
 fn gcm_tag_only_packet_is_rejected_when_encryption_is_required() {
     let mut rx = SrtcpSession::new_receiver(gcm_128()).require_encryption(true);
-    assert!(matches!(rx.unprotect(&tagged(TAG_128)), Err(SrtpError::Unencrypted)));
+    assert!(matches!(
+        rx.unprotect(&tagged(TAG_128)),
+        Err(SrtpError::Unencrypted)
+    ));
 }
 
 #[test]
@@ -88,17 +102,26 @@ fn flipping_the_e_flag_fails_authentication() {
     let mut tag_only = tagged(TAG_128);
     let trailer_at = tag_only.len() - 4;
     tag_only[trailer_at] |= 0x80;
-    assert!(matches!(rx.unprotect(&tag_only), Err(SrtpError::AuthFailed)));
+    assert!(matches!(
+        rx.unprotect(&tag_only),
+        Err(SrtpError::AuthFailed)
+    ));
 }
 
 #[test]
 fn aes_cm_unencrypted_packet_is_accepted_unless_encryption_is_required() {
     let packet = unencrypted_aes_cm_packet(9);
     let mut rx = SrtcpSession::new_receiver(aes_cm_key());
-    assert_eq!(to_hex(&rx.unprotect(&packet).unwrap()), to_hex(&cleartext_rtcp()));
+    assert_eq!(
+        to_hex(&rx.unprotect(&packet).unwrap()),
+        to_hex(&cleartext_rtcp())
+    );
 
     let mut strict = SrtcpSession::new_receiver(aes_cm_key()).require_encryption(true);
-    assert!(matches!(strict.unprotect(&packet), Err(SrtpError::Unencrypted)));
+    assert!(matches!(
+        strict.unprotect(&packet),
+        Err(SrtpError::Unencrypted)
+    ));
 }
 
 #[test]
@@ -113,5 +136,8 @@ fn a_rejected_unencrypted_packet_does_not_consume_its_index() {
     tx.set_index(9).unwrap();
     let mut out = vec![0u8; cleartext_rtcp().len() + 32];
     let n = tx.protect(&cleartext_rtcp(), &mut out).unwrap();
-    assert_eq!(to_hex(&strict.unprotect(&out[..n]).unwrap()), to_hex(&cleartext_rtcp()));
+    assert_eq!(
+        to_hex(&strict.unprotect(&out[..n]).unwrap()),
+        to_hex(&cleartext_rtcp())
+    );
 }

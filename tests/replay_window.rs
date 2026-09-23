@@ -69,7 +69,10 @@ fn window_size_is_configurable_from_64_to_1024() {
     assert_eq!(DEFAULT_WINDOW_SIZE, 1024);
     assert_eq!(ReplayWindow::new().size(), DEFAULT_WINDOW_SIZE);
     assert_eq!(ReplayWindow::with_size(MIN_WINDOW_SIZE).unwrap().size(), 64);
-    assert_eq!(ReplayWindow::with_size(MAX_WINDOW_SIZE).unwrap().size(), 1024);
+    assert_eq!(
+        ReplayWindow::with_size(MAX_WINDOW_SIZE).unwrap().size(),
+        1024
+    );
     assert!(matches!(
         ReplayWindow::with_size(MIN_WINDOW_SIZE - 1),
         Err(SrtpError::InvalidReplayWindow(63))
@@ -115,7 +118,9 @@ fn video_burst_reordered_beyond_64_packets_is_accepted_by_default() {
     let key = SrtpKey::from_master(&[7u8; 16], &[9u8; 12], Profile::AeadAes128Gcm).unwrap();
     let mut tx = SrtpSession::new_sender(key.clone());
     let mut rx = SrtpSession::new_receiver(key.clone());
-    let mut rx_small = SrtpSession::new_receiver(key).with_replay_window(64).unwrap();
+    let mut rx_small = SrtpSession::new_receiver(key)
+        .with_replay_window(64)
+        .unwrap();
 
     let mut protected = Vec::new();
     for seq in 0u16..400 {
@@ -136,7 +141,13 @@ fn video_burst_reordered_beyond_64_packets_is_accepted_by_default() {
         rx.unprotect(&mut packet.clone()).unwrap();
         rx_small.unprotect(&mut packet.clone()).unwrap();
     }
-    assert_eq!(rx.unprotect(&mut late.clone()).unwrap().payload(), 100u16.to_be_bytes());
-    assert!(matches!(rx_small.unprotect(&mut late.clone()), Err(SrtpError::Replay)));
+    assert_eq!(
+        rx.unprotect(&mut late.clone()).unwrap().payload(),
+        100u16.to_be_bytes()
+    );
+    assert!(matches!(
+        rx_small.unprotect(&mut late.clone()),
+        Err(SrtpError::Replay)
+    ));
     assert!(matches!(rx.unprotect(&mut late), Err(SrtpError::Replay)));
 }
