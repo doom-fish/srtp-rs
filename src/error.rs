@@ -42,6 +42,8 @@ pub enum SrtpError {
     InvalidReplayWindow(usize),
     #[allow(missing_docs)]
     Unencrypted,
+    #[allow(missing_docs)]
+    SessionStarted,
 }
 
 impl fmt::Display for SrtpError {
@@ -75,6 +77,9 @@ impl fmt::Display for SrtpError {
             Self::Unencrypted => {
                 f.write_str("SRTCP packet is not encrypted but the session requires encryption")
             }
+            Self::SessionStarted => f.write_str(
+                "the session has already processed packets; configure it before first use",
+            ),
         }
     }
 }

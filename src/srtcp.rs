@@ -65,6 +65,9 @@ impl SrtcpSession {
 
     #[allow(missing_docs)]
     pub fn with_replay_window(self, size: usize) -> Result<Self> {
+        if self.replay.highest().is_some() {
+            return Err(SrtpError::SessionStarted);
+        }
         Ok(Self {
             replay: ReplayWindow::with_size(size)?,
             ..self

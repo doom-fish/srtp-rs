@@ -81,6 +81,10 @@ impl SenderRoc {
     pub const fn roc(&self) -> u32 {
         self.highest.roc()
     }
+
+    pub(crate) const fn is_fresh(&self) -> bool {
+        self.highest.s_l.is_none()
+    }
 }
 
 /// Receiver-side ROC estimation (RFC 3711 Appendix A).

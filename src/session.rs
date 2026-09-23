@@ -188,6 +188,9 @@ impl SrtpSession {
 
     #[allow(missing_docs)]
     pub fn with_replay_window(self, size: usize) -> Result<Self> {
+        if !self.is_fresh() {
+            return Err(SrtpError::SessionStarted);
+        }
         Ok(Self {
             replay: ReplayWindow::with_size(size)?,
             ..self
@@ -195,13 +198,21 @@ impl SrtpSession {
     }
 
     #[allow(missing_docs)]
-    #[must_use]
-    pub fn with_roc(self, roc: u32) -> Self {
-        Self {
+    pub fn with_roc(self, roc: u32) -> Result<Self> {
+        if !self.is_fresh() {
+            return Err(SrtpError::SessionStarted);
+        }
+        Ok(Self {
             sender_roc: SenderRoc::with_roc(roc),
             receiver_roc: ReceiverRoc::with_roc(roc),
             ..self
-        }
+        })
+    }
+
+    const fn is_fresh(&self) -> bool {
+        self.sender_roc.is_fresh()
+            && self.receiver_roc.highest_seq().is_none()
+            && self.replay.highest().is_none()
     }
 
     /// The negotiated protection profile.

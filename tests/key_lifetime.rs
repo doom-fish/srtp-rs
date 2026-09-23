@@ -85,8 +85,10 @@ fn srtp_sender_refuses_to_reuse_an_index() {
 #[test]
 fn srtp_sender_stops_before_the_rollover_counter_wraps() {
     let key = master(Profile::AeadAes256Gcm);
-    let mut tx = SrtpSession::new_sender(key.clone()).with_roc(u32::MAX);
-    let mut rx = SrtpSession::new_receiver(key).with_roc(u32::MAX);
+    let mut tx = SrtpSession::new_sender(key.clone())
+        .with_roc(u32::MAX)
+        .unwrap();
+    let mut rx = SrtpSession::new_receiver(key).with_roc(u32::MAX).unwrap();
 
     let mut last = protect(&mut tx, 0xffff).unwrap();
     assert_eq!(rx.unprotect(&mut last).unwrap().payload(), b"media payload");
@@ -166,5 +168,40 @@ fn from_session_rejects_keys_shared_by_srtp_and_srtcp() {
             expected: 20,
             actual: 10
         })
+    ));
+}
+
+#[test]
+fn session_settings_are_refused_once_packets_have_been_processed() {
+    let key = master(Profile::AeadAes128Gcm);
+    let mut tx = SrtpSession::new_sender(key.clone());
+    let mut wire = protect(&mut tx, 5).unwrap();
+    assert!(matches!(tx.with_roc(0), Err(SrtpError::SessionStarted)));
+
+    let mut rx = SrtpSession::new_receiver(key.clone());
+    rx.unprotect(&mut wire).unwrap();
+    assert!(matches!(
+        rx.with_replay_window(64),
+        Err(SrtpError::SessionStarted)
+    ));
+
+    let fresh = SrtpSession::new_receiver(key.clone())
+        .with_replay_window(64)
+        .unwrap()
+        .with_roc(3)
+        .unwrap();
+    assert_eq!(fresh.sender_roc(), 3);
+
+    let mut control_tx = SrtcpSession::new_sender(key.clone());
+    let mut control_rx = SrtcpSession::new_receiver(key)
+        .with_replay_window(128)
+        .unwrap();
+    let rtcp = hex("81c90001 4d617273");
+    let mut out = vec![0u8; 64];
+    let n = control_tx.protect(&rtcp, &mut out).unwrap();
+    control_rx.unprotect(&out[..n]).unwrap();
+    assert!(matches!(
+        control_rx.with_replay_window(64),
+        Err(SrtpError::SessionStarted)
     ));
 }
