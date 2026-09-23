@@ -40,6 +40,8 @@ pub enum SrtpError {
     SessionKeyReuse,
     #[allow(missing_docs)]
     InvalidReplayWindow(usize),
+    #[allow(missing_docs)]
+    Unencrypted,
 }
 
 impl fmt::Display for SrtpError {
@@ -70,6 +72,9 @@ impl fmt::Display for SrtpError {
                 crate::replay::MIN_WINDOW_SIZE,
                 crate::replay::MAX_WINDOW_SIZE
             ),
+            Self::Unencrypted => {
+                f.write_str("SRTCP packet is not encrypted but the session requires encryption")
+            }
         }
     }
 }

@@ -32,6 +32,7 @@ pub struct SrtcpSession {
     key: SrtpKey,
     index: u32,
     replay: ReplayWindow,
+    require_encryption: bool,
 }
 
 impl SrtcpSession {
@@ -43,6 +44,7 @@ impl SrtcpSession {
             key,
             index: 0,
             replay: ReplayWindow::new(),
+            require_encryption: false,
         }
     }
 
@@ -50,6 +52,15 @@ impl SrtcpSession {
     #[must_use]
     pub const fn new_receiver(key: SrtpKey) -> Self {
         Self::new_sender(key)
+    }
+
+    #[allow(missing_docs)]
+    #[must_use]
+    pub fn require_encryption(self, required: bool) -> Self {
+        Self {
+            require_encryption: required,
+            ..self
+        }
     }
 
     #[allow(missing_docs)]
@@ -163,7 +174,9 @@ impl SrtcpSession {
     /// # Errors
     /// Returns [`SrtpError::TooShort`] if the framing is incomplete,
     /// [`SrtpError::Replay`] if the SRTCP index is a replay,
-    /// [`SrtpError::AuthFailed`] if authentication fails, or
+    /// [`SrtpError::AuthFailed`] if authentication fails,
+    /// [`SrtpError::Unencrypted`] if the packet authenticates but is not
+    /// encrypted (E flag clear) and the session requires encryption, or
     /// [`SrtpError::Crypto`] on a cipher failure.
     pub fn unprotect(&mut self, srtcp: &[u8]) -> Result<Vec<u8>> {
         let (enc_key, salt, auth_key) = self.key.srtcp_material();
@@ -188,16 +201,29 @@ impl SrtcpSession {
             }
             let ssrc = u32::from_be_bytes([srtcp[4], srtcp[5], srtcp[6], srtcp[7]]);
             let iv = srtcp_gcm_iv(salt, ssrc, index);
-            let mut aad = Vec::with_capacity(HEADER_CLEAR + TRAILER_LEN);
-            aad.extend_from_slice(&srtcp[..HEADER_CLEAR]);
-            aad.extend_from_slice(&srtcp[trailer_at..]);
-            let ct = &srtcp[HEADER_CLEAR..trailer_at];
-            let pt = gcm_open(enc_key, &iv, &aad, ct)?;
+            let trailer = &srtcp[trailer_at..];
+            let out = if esrtcp & E_FLAG == 0 {
+                let tag_at = trailer_at - tag_len;
+                let mut aad = Vec::with_capacity(tag_at + TRAILER_LEN);
+                aad.extend_from_slice(&srtcp[..tag_at]);
+                aad.extend_from_slice(trailer);
+                gcm_open(enc_key, &iv, &aad, &srtcp[tag_at..trailer_at])?;
+                if self.require_encryption {
+                    return Err(SrtpError::Unencrypted);
+                }
+                srtcp[..tag_at].to_vec()
+            } else {
+                let mut aad = Vec::with_capacity(HEADER_CLEAR + TRAILER_LEN);
+                aad.extend_from_slice(&srtcp[..HEADER_CLEAR]);
+                aad.extend_from_slice(trailer);
+                let pt = gcm_open(enc_key, &iv, &aad, &srtcp[HEADER_CLEAR..trailer_at])?;
+                let mut out = Vec::with_capacity(HEADER_CLEAR + pt.len());
+                out.extend_from_slice(&srtcp[..HEADER_CLEAR]);
+                out.extend_from_slice(&pt);
+                out
+            };
 
             self.replay.mark(u64::from(index));
-            let mut out = Vec::with_capacity(HEADER_CLEAR + pt.len());
-            out.extend_from_slice(&srtcp[..HEADER_CLEAR]);
-            out.extend_from_slice(&pt);
             Ok(out)
         } else {
             // Layout: header(8) || ciphertext || E||index(4) || tag
@@ -217,6 +243,9 @@ impl SrtcpSession {
                 return Err(SrtpError::Replay);
             }
             verify_hmac(auth_key, &srtcp[..body_end], &srtcp[body_end..])?;
+            if self.require_encryption && esrtcp & E_FLAG == 0 {
+                return Err(SrtpError::Unencrypted);
+            }
 
             let ssrc = u32::from_be_bytes([srtcp[4], srtcp[5], srtcp[6], srtcp[7]]);
             let mut out = Vec::with_capacity(trailer_at);
