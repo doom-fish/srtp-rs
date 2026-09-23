@@ -114,12 +114,8 @@ pub fn gcm_open(
 /// # Errors
 /// Returns [`SrtpError::Crypto`] if the CommonCrypto AES-CTR primitive fails.
 pub fn aes_cm_xor(key: &[u8], iv: &[u8; 16], data: &mut [u8]) -> Result<()> {
-    let keystream = commoncrypto::aes_ctr_keystream(key, iv, data.len())
-        .map_err(|status| SrtpError::Crypto(format!("AES-CTR failed (status {status})")))?;
-    for (d, k) in data.iter_mut().zip(keystream.iter()) {
-        *d ^= *k;
-    }
-    Ok(())
+    commoncrypto::aes_ctr_in_place(key, iv, data)
+        .map_err(|status| SrtpError::Crypto(format!("AES-CTR failed (status {status})")))
 }
 
 /// Compute the truncated HMAC-SHA1 authentication tag over `data` (already

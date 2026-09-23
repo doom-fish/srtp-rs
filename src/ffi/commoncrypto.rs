@@ -30,6 +30,8 @@ const KCC_MODE_OPTION_CTR_BE: u32 = 2;
 
 /// `kCCSuccess`.
 const KCC_SUCCESS: i32 = 0;
+const KCC_BUFFER_TOO_SMALL: i32 = -4301;
+const KCC_UNSPECIFIED_ERROR: i32 = -4308;
 
 /// `CCHmacAlgorithm` value for HMAC-SHA1 (`kCCHmacAlgSHA1`).
 const KCC_HMAC_ALG_SHA1: u32 = 0;
@@ -92,9 +94,18 @@ extern "C" {
 ///
 /// # Errors
 /// Returns the raw `CCCryptorStatus` if CommonCrypto rejects the parameters or
-/// the cryptor cannot be created.
+/// the cryptor cannot be created, and `kCCBufferTooSmall` if `output` is
+/// shorter than `input`.
 pub fn aes_ctr(key: &[u8], iv: &[u8; 16], input: &[u8], output: &mut [u8]) -> Result<(), i32> {
-    assert!(output.len() >= input.len(), "output buffer too small");
+    let Some(output) = output.get_mut(..input.len()) else {
+        return Err(KCC_BUFFER_TOO_SMALL);
+    };
+    output.copy_from_slice(input);
+    aes_ctr_in_place(key, iv, output)
+}
+
+#[allow(missing_docs)]
+pub fn aes_ctr_in_place(key: &[u8], iv: &[u8; 16], data: &mut [u8]) -> Result<(), i32> {
     let mut cryptor: CCCryptorRef = core::ptr::null_mut();
     // SAFETY: pointers are valid for the lengths passed; cryptor is released below.
     let status = unsafe {
@@ -118,14 +129,15 @@ pub fn aes_ctr(key: &[u8], iv: &[u8; 16], input: &[u8], output: &mut [u8]) -> Re
     }
 
     let mut moved: usize = 0;
+    let buffer = data.as_mut_ptr();
     // SAFETY: cryptor is valid; input/output spans are in bounds.
     let status = unsafe {
         CCCryptorUpdate(
             cryptor,
-            input.as_ptr(),
-            input.len(),
-            output.as_mut_ptr(),
-            output.len(),
+            buffer,
+            data.len(),
+            buffer,
+            data.len(),
             &raw mut moved,
         )
     };
@@ -136,7 +148,9 @@ pub fn aes_ctr(key: &[u8], iv: &[u8; 16], input: &[u8], output: &mut [u8]) -> Re
     if status != KCC_SUCCESS {
         return Err(status);
     }
-    debug_assert_eq!(moved, input.len());
+    if moved != data.len() {
+        return Err(KCC_UNSPECIFIED_ERROR);
+    }
     Ok(())
 }
 
@@ -144,11 +158,10 @@ pub fn aes_ctr(key: &[u8], iv: &[u8; 16], input: &[u8], output: &mut [u8]) -> Re
 /// block `iv` (equivalent to encrypting `len` zero bytes).
 ///
 /// # Errors
-/// Propagates the `CCCryptorStatus` from [`aes_ctr`].
+/// Propagates the `CCCryptorStatus` from [`aes_ctr_in_place`].
 pub fn aes_ctr_keystream(key: &[u8], iv: &[u8; 16], len: usize) -> Result<Vec<u8>, i32> {
-    let zeros = vec![0u8; len];
     let mut out = vec![0u8; len];
-    aes_ctr(key, iv, &zeros, &mut out)?;
+    aes_ctr_in_place(key, iv, &mut out)?;
     Ok(out)
 }
 
