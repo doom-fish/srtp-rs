@@ -150,8 +150,10 @@ cargo run --example 03_kdf_demo
 ## Platform
 
 The crypto primitives are provided by Apple's CryptoKit and CommonCrypto, so
-this crate targets Apple platforms (macOS, iOS, …). The frameworks are linked
-automatically; no system packages are required.
+this crate runs on macOS only. Binaries need macOS 13 or later: `cryptokit-rs`
+links `security-rs`, whose Swift bridge targets macOS 12, and `security-rs`
+links `apple-cf`, whose Swift bridge targets macOS 13. The frameworks are
+linked automatically; no system packages are required.
 
 ## License
 

@@ -83,5 +83,7 @@ stubbed:
 
 The cryptographic primitives come from Apple frameworks (CryptoKit via
 `cryptokit-rs`, CommonCrypto via a local FFI), so the crate is Apple-platform
-only. There are no third-party crypto crates in the dependency graph; the sole
+only. Binaries need macOS 13 or later, inherited through `cryptokit-rs` from
+`security-rs` (Swift bridge: macOS 12) and `apple-cf` (Swift bridge: macOS 13).
+There are no third-party crypto crates in the dependency graph; the sole
 crates.io dependency is `zeroize`.

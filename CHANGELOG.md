@@ -61,6 +61,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   return `Zeroizing<Vec<u8>>`.
 - **Breaking:** requires rtp-rs 0.2 (`>=0.2, <0.3`), whose packet builder and
   compound encoder are fallible, and cryptokit-rs 0.3 (`>=0.3, <0.4`).
+- **Breaking:** binaries need macOS 13 or later (0.1.0 ran on macOS 10.15,
+  the deployment target of cryptokit-rs's Swift bridge). cryptokit-rs 0.3
+  links security-rs, whose Swift bridge targets macOS 12, and security-rs
+  links apple-cf, whose Swift bridge targets macOS 13. The README and
+  COVERAGE state the minimum, and the README no longer claims iOS support.
 - `rust-version` is 1.82. The unused `libc` dependency is removed, and
   `zeroize` (`>=1.6, <1.9`) is added.
 
